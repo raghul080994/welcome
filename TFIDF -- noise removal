@@ -1,0 +1,267 @@
+
+library(stringr)
+
+library(tm)
+library(dplyr)
+library(reshape2)
+library(ngram)
+library(stringr)
+
+###ngram - Function
+ngram_unigramTokenizer<-function (x) 
+{
+  x <- as.character(x)
+  two.list <- c()
+  tryCatch({
+    two.gram <- ngram::ngram(x, n = 1)
+    two.list <- ngram::get.ngrams(two.gram)
+  }, error = function(cond) {
+  })
+  res <- unlist(c(two.list))
+  res[res != ""]
+}
+remove_word_list<-list()
+
+# dump1<-read.csv("CVS_TEST.csv")
+# dump1<-dump1[1:5000,1:3]
+stopwrds<-read.csv("Common_Stopwords.csv")
+dump1<-read.csv("SRT_TEST.csv")
+label_list<-list()
+text_data <- as.character(dump1$TEXT)
+text_data <- gsub("\n", " ", text_data) 
+text_data <- gsub("[[:punct:]]", "", text_data) 
+
+text_data<-tolower(text_data)
+label<-text_data
+idf_compute<-function(output){
+  id=function(col){sum(!col==0)}
+  idf <- log(nrow(output)/apply(output, 2, id))
+  return(idf)
+}
+document_filter<-function(tdata,min_idf_word_list){
+  tdata<- tdata
+  pattern <- paste(".*?\\b",min_idf_word_list,"\\b.*?",sep = "")
+  print(min_idf_word_list)
+  return(all(str_detect(tdata,min_idf_word_list)))
+}
+
+
+
+corpus.ng<- VCorpus(VectorSource(text_data))
+dtm.ngram = DocumentTermMatrix(corpus.ng,control = list(tokenize = ngram_unigramTokenizer))
+dtm.ngram <- removeSparseTerms(dtm.ngram, sparse = 0.96)
+idf<-idf_compute(dtm.ngram)
+idf<-idf[!names(idf)%in%stopwrds$x]
+for(i in 1:(length(idf)-1)){
+idf_sorted<-sort(idf)
+min_idf_val1<-idf_sorted[i]
+min_idf_val2<-idf_sorted[i+1]
+min_idf_val<-c(min_idf_val1,min_idf_val2)
+min_idf_word_list<-names(min_idf_val)
+
+
+if(all(min_idf_val<log(21))){
+if(length(min_idf_val)==0){
+break
+}else{
+  cond <- lapply(text_data,function(x)document_filter(x,min_idf_word_list))
+  
+  text_data1<-text_data[(which(cond==TRUE))]
+  
+  corpus.ng<- VCorpus(VectorSource(text_data1))
+  dtm.ngram = DocumentTermMatrix(corpus.ng,control = list(tokenize = ngram_unigramTokenizer))
+  dtm.ngram <- removeSparseTerms(dtm.ngram,sparse = 0.96)
+  ngramdf <- as.data.frame(as.matrix(dtm.ngram))
+  
+  
+  idf2<-idf_compute(ngramdf)
+  
+   if(length(idf2)<=3){
+     idf2<-idf2[idf2<0.05]
+     if(length(idf)>1){#######check if no idf value is less than 0.5
+    min_idf_word_list1<-tail((sort(idf2)),length(idf2))}
+  }else{
+    if(length(which(idf2==0))<3){
+    idf2<-idf2[idf2<0.04]#########idf value 0.05 shows 90%documents has label
+    min_idf_word_list1<-head((sort(idf2)),3)
+    }else{
+    min_idf_word_list1<-idf2[which(idf2==0)]
+    }
+  }
+  if(length(min_idf_word_list1)>0){
+  label1<-str_extract_all(string=(text_data1), pattern=paste0(names(min_idf_word_list1),collapse = "|"))
+  label_list[i]<-list(unique(label1))
+  }else{
+    label_list[i]<-"no value"
+  }
+}
+}else{
+  break
+}
+
+
+}
+label_file<-unique(rapply(label_list, function(x) paste0(x,collapse=" ")))
+lbl_i<-1
+final_lbl<-list()
+document_filter1<-function(lbl,tdata){
+  tdata<- tdata
+  
+  logical_value<-all(str_detect(tdata,lbl))
+  if(logical_value){
+    final_lbl[lbl_i]<-lbl
+    lbl_i<-lbl_i+1
+  }
+  
+return((unlist(final_lbl)))
+}
+
+label_file3<-list()
+document_filter3<-function(lbl){
+  
+  
+  label_file3<-unique(unlist(str_split(lbl,pattern = " ")))
+  
+  return(label_file3)
+}
+
+
+
+text_data3 <- as.character(dump1$TEXT)
+text_data3 <- gsub("\n", " ", text_data3) 
+text_data3 <- gsub("[[:punct:]]", "", text_data3) 
+text_data3 <- gsub("`", "", text_data3)
+text_data3<-tolower(text_data3)
+
+
+a<-unique(lapply(label_file,function(x)document_filter1(x, text_data3)))
+corpus.ng3<- VCorpus(VectorSource(text_data3))
+dtm.ngram3 = DocumentTermMatrix(corpus.ng3,control = list(tokenize = ngram_unigramTokenizer))
+
+dtm.ngram <- removeSparseTerms(dtm.ngram,sparse = 0.96)
+b<-colnames(dtm.ngram3)
+label_file3<-unique(lapply(label_file,function(x)document_filter3(x)))
+
+c<-unique(b[-which( str_detect(label_file3,b)==TRUE)])
+label_file4<-str_replace_all(text_data3, pattern=paste0(c,collapse = "|"), repl=" ")
+
+label_file4<-str_replace_all(text_data3[1:100], pattern=paste0(c,collapse = "|"), repl=" ")
+
+write.csv(data.frame(label_file4),"label_SRT.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+dump1$filtered_data<-as.character(text_data)
+output_tmp<-df[(row.names(df[,min_idf_word_list]>0)),]
+which(any(df[min_idf_word_list >0]==TRUE))
+
+
+
+id1=function(col){sum(!col==0)}
+idf1 <- log(nrow(output_tmp)/apply(output_tmp, 2, id1))
+if(min(idf1)==0){
+  remove_word_list[1]<- list(as.character(names(idf1)[which(idf1==min(idf1))]))
+}
+
+
+
+
+
+
+
+####output wiil be tf-idf matrix
+
+df <- ngramdf
+rownames(ngramdf) <- NULL
+df[df==0] <- NA
+df[df>0] <- 1
+output <- df
+tf<-df
+
+id=function(col){sum(!col==0)}
+idf <- log(nrow(ngramdf)/apply(ngramdf, 2, id))
+
+for(word in names(idf)){output[,word] <- df[,word] * idf[word]}
+
+# row_result <- function(row) {names(sort(row))[1]}
+output[is.na(output)]<-0
+df[is.na(df)]<-0
+
+doc<-output+df
+doc[is.na(doc)]<-0
+
+for(i in 1:nrow(doc)){
+  
+  dump2$STATICPATTERN[i]<- paste0(names(doc)[which(doc[i,]==df[i,])],collapse = " ")
+  dump2$NONSTATICPATTERN[i]<- paste0(names(doc)[which(doc[i,]!=df[i,])],collapse = " ")
+}
+
+dump1
+
+
+row_result <- function(row) {paste0(names(output)[which(row >(max(row)*0.2))],collapse=" ")}
+row_result1 <- function(row) {paste0(names(output1)[which(row <=(max(row)*0.2) & row >=0)],collapse=" ")}
+
+ 
+output$Ngram_pattern <- apply(output,1,function(x) row_result(x))
+output1$Ngram_pattern1 <- apply(output1,1,function(x) row_result1(x))
+
+i<-0
+
+df_final_tbl_2 = apply(doc, MARGIN = 1, function(x) {
+  
+  a<-data.frame(x[,])
+  i<-i+1
+  
+  agent_output = data.frame(
+    agentno_upd(
+      Intensity = as.numeric(x["intensity"]),
+      target = as.numeric(x["target"]),
+      duration = as.numeric(x['avg_eff']),
+      servreq = as.numeric(x['adherence']),
+      avg_tkt_cnt = as.numeric(x['avg_tkt_cnt']),
+      base_fte = as.numeric(x['base_fte']),
+      appgroup = as.character(x['appgroup']),
+      practiseowner = as.character(x['practiseowner']),
+      shift = as.character(x['shift']),
+      esaprojectid = as.character(x['esaprojectid']),
+      metaltier = as.character(x['metaltier']),
+      priority = as.character(x['priority']),
+      ticket.type = as.character(x['ticket.type']),
+      orig_sla = as.character(x['orig_sla'])
+    )
+  )
+  agent_output = agent_output[nrow(agent_output), ]
+})
+
+
+
+dump1$nonstatic_pattern<-output$Ngram_pattern
+dump1$static_pattern<-output1$Ngram_pattern1
+write.csv(dump1,"dump1.csv")
+#output$Ngram_pattern[is.na(output$Ngram_pattern)] <- 0
+ngram_pattern <- output$Ngram_pattern
+
