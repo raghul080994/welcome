@@ -1,0 +1,62 @@
+validate_date_column <- function(dataset,colnames)
+{
+  date_flag <- tryCatch(
+    {
+      date_check <- date_code(dataset,colnames)
+    }, error= function(err)
+    {
+      return(FALSE)
+    }
+  )
+  
+  if(is.data.frame(date_flag))
+  { 
+    response_var = TRUE
+    error_msg = NA
+  } else if(is.character(date_flag)) 
+  {
+    response_var = FALSE
+    error_msg = date_flag
+  } else 
+  {
+    response_var = FALSE
+    error_msg = "Not able to detect date"
+  }
+  
+  return(list(flag=response_var,msg=error_msg))
+  
+}
+
+
+
+########################
+
+data_summary <- function(input_dataset)
+{
+  df1 <- data.frame(character(),character(),integer(),integer(),numeric(),integer(),numeric(),integer(),numeric(),logical())
+  
+  for (name in colnames(input_dataset)) {
+    
+    date_check = validate_date_column(input_dataset,name)
+    
+    df1 <- rbind(df1,data.frame(ColName=name,DataType=class(input_dataset[,name]),
+                                TotalRecords=nrow(input_dataset),
+                                UniqueCounts=length(unique(input_dataset[,name])),
+                                UniquePercent=round(length(unique(input_dataset[,name]))/nrow(input_dataset)*100,2),
+                                NACounts=sum(is.na(input_dataset[,name])),
+                                NAPercent=round(sum(is.na(input_dataset[,name]))/nrow(input_dataset)*100,2),
+                                RecordsExceed35CharLength=sum(nchar(as.character(iconv(input_dataset[,name], "latin1", "ASCII", sub=""))) >= 35,na.rm=T),
+                                RecordsExceed35Percent = round(sum(nchar(as.character(iconv(input_dataset[,name], "latin1", "ASCII", sub=""))) >= 35,na.rm=T)/nrow(input_dataset)*100,2),
+                                DateType = date_check$flag,
+                                DateError = date_check$msg ))
+    
+  }
+  
+  df1$DataType <- as.character(df1$DataType)
+  df1$FinalDataType <- ifelse(df1$DateType==TRUE,"Date Time",df1$DataType)
+  df1$FinalDataType <- ifelse(df1$UniquePercent > 10 & df1$RecordsExceed35Percent > 50,"Text",df1$FinalDataType)
+  
+  df1 <- df1[order(df1$NACounts,decreasing = T),]
+  
+  return(df1)
+}
