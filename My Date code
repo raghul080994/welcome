@@ -1,0 +1,664 @@
+date_code<-function(data,column)
+{
+  #####library loading   
+  library(dplyr)
+  library(stringr)
+  library(lubridate)
+  month_day_freq<-0
+  
+  find_separator_date<-function(value)
+  { 
+    
+    separator <- strsplit(value,"")
+    separator_1<-unlist(separator)
+    temp<-which(str_detect(separator_1,"[[:punct:]]"))
+    ###checking for exact 2 seaparator in date value
+    if(length(temp)==2){
+      index<-temp[1]
+      separator<-separator_1[index]
+      return(separator)
+    }else{return(NA)}
+    
+    
+  }
+  
+  find_separator_time<-function(value)
+  { 
+    
+    separator <- strsplit(value,"")
+    separator_1<-unlist(separator)
+    temp<-which(str_detect(separator_1,"[[:punct:]]"))
+    ###checking for exact 2 seaparator in date value
+    if(length(temp)<3){
+      index<-temp[1]
+      separator<-separator_1[index]
+      return(separator)
+    }else{return(NA)}
+    
+    
+  }
+  
+  
+  
+  ###date validation function
+  date_validation<-function(data){
+    
+    split1<-data
+    date_df<-data.frame(split1[,1])
+    colnames(date_df)<-"date"
+    dt_separator_vield_value<-which(str_length(date_df$date)==(max(str_length(na.exclude(date_df$date)))))[1]
+    ###finding the separator from the maximum length value field
+    date_sep<-find_separator_date(as.character(date_df$date[dt_separator_vield_value]))
+    stop<-0
+    p<-0
+    
+    Not_valid_date_separators<-c(":",",","&","\\$",">","<","%","\\*","\\+",";","=","\\?","@","\\[","\\]","\\{","\\}","\\~","\\^")
+    if(date_sep %in% Not_valid_date_separators)
+    {
+      stop<-1
+      
+    }
+    if(is.na(date_sep)){
+      stop<-1
+    }else{
+      
+      ####this part will execute if stop = 0
+      
+      
+      if(date_sep==".")
+      {
+        date_sep="\\."
+      }
+      
+      
+      date_split <- data.frame(do.call('rbind', strsplit(as.character(date_df$date),date_sep,fixed=TRUE)),stringsAsFactors = FALSE)
+      
+      year_df<-data.frame(date_split)
+      
+    }
+    
+    
+    ###########chencking for the column is a proper field or not
+    if(stop==0){
+      
+      if(!is.na(year_df$X1[1]) & !is.na(year_df$X2[1]) & !is.na(year_df$X3[1]))
+      {
+        if(str_length(year_df$X1[1])>4)
+        {
+          if(str_length(year_df$X2[1])>4|str_length(year_df$X3[1])>4){
+            stop <-1
+          }}else if(str_length(year_df$X2[1])>4)
+          {
+            if(str_length(year_df$X1[1])>4|str_length(year_df$X3[1])>4){
+              stop <-1
+            }  
+          }else if(str_length(year_df$X3[1])>4)
+          {
+            if(str_length(year_df$X2[1])>4|str_length(year_df$X1[1])>4){
+              stop <-1
+            } 
+          }
+        
+      }else{
+        stop <-1
+      }
+    }
+    
+    
+    if(stop==0){
+      
+      #####this part will execute if stop is =0  
+      
+      ####Finding the minimum frequency to find year incase of 2 digit 
+      
+      if(any(is.na(as.numeric(date_split$X1)))=="TRUE"){
+        year_var1<-NULL
+      }else{
+        year_var1<-nrow(count(year_df,1))
+      }
+      
+      
+      
+      if(any(is.na(as.numeric(date_split$X2)))=="TRUE"){
+        year_var2<-NULL
+      }else{
+        year_var2<-nrow(count(year_df,2))
+      }
+      
+      
+      if(any(is.na(as.numeric(date_split$X3)))=="TRUE"){
+        year_var3<-NULL
+      }else{
+        year_var3<-nrow(count(year_df,3))
+      }
+      
+      
+      minimum<-min(year_var1,year_var2,year_var3)
+      string_testing1<-is.infinite(minimum)|is.na(minimum)|is.null(minimum)
+      
+    if(string_testing1){
+      stop<-1
+
+    } else{
+      #######finding year incase of 4 digit and also make sure that >2 means "2018" and not  a character like "JAN"
+      if(str_length(date_split$X3[1])>2 & ((is.na(as.numeric(date_split$X3[1])))=="FALSE")){
+        # year_X3<-1
+        year_df$X3<-date_split$X3
+        year_df$X2<-date_split$X2
+        year_df$X1<-date_split$X1
+      }else if(str_length(date_split$X2[1])>2 & ((is.na(as.numeric(date_split$X2[1])))=="FALSE") ){
+        # year_X2<-1
+        year_df$X3<-date_split$X2
+        year_df$X2<-date_split$X3
+        year_df$X1<-date_split$X1
+      }else if(str_length(date_split$X1[1])>2 & ((is.na(as.numeric(date_split$X1[1])))=="FALSE")){
+        # year_X1<-1
+        year_df$X3<-date_split$X1
+        year_df$X2<-date_split$X2
+        year_df$X1<-date_split$X3
+      }else{
+        if(minimum ==year_var3){
+          year_df$X3<-date_split$X3
+          year_df$X2<-date_split$X2
+          year_df$X1<-date_split$X1
+        }else if(minimum ==year_var2){
+          year_df$X3<-date_split$X2
+          year_df$X2<-date_split$X3
+          year_df$X1<-date_split$X1
+        }else if(minimum ==year_var1){
+          year_df$X3<-date_split$X1
+          year_df$X2<-date_split$X2
+          year_df$X1<-date_split$X3
+        }
+        
+      }
+      
+      
+      df$final_year<-year_df$X3
+      
+      
+      ####finding the abbreviated month
+      a<-as.numeric(year_df$X1[1])
+      
+      b<-as.numeric(year_df$X2[1])
+      
+      if(is.na(a) || is.na(b))
+      {
+        if(is.na(a)){
+          df$final_month=year_df$X1
+          df$final_day=year_df$X2
+        }else if(is.na(b)){
+          df$final_month=year_df$X2
+          df$final_day=year_df$X1
+        }}else{
+          ##########Finding the month based on <12 condition
+          
+          if( nrow(year_df)==1){
+            year_df$X1<-as.numeric(year_df$X1)
+            year_df$X2<-as.numeric(year_df$X2)
+            year_df$X3<-as.numeric(year_df$X3)
+          }else{
+            year_df <- as.data.frame(sapply(year_df, as.numeric))
+          }
+          
+          
+          
+          if(all(year_df$X1 <= 12 ) & any(year_df$X2 >12))
+          {
+            p=1
+          }
+          
+          if(any(year_df$X1 > 12 ) & all(year_df$X2 <= 12))
+          {
+            p=2
+          }
+          
+          if(all(year_df$X1 <= 12 ) & all(year_df$X2 <= 12))
+          {
+            p=3
+          }
+          
+          if(any(year_df$X1 > 12 ) && any(year_df$X2 > 12))
+          {
+            p=4
+            
+          }
+        }  
+      ############finding the line number where more than one format exists
+      
+      if(p==4){
+        
+        x1_linenum<-which(year_df$X1>12)
+        x2_linenum<-which(year_df$X2>12)
+        
+        line_num<-unique(c(x1_linenum,x2_linenum))
+        
+      } 
+      
+      if(p==1)
+      {
+        df$final_month=year_df$X1
+        df$final_day=year_df$X2
+      }else if(p==2)
+      {
+        df$final_day=year_df$X1
+        df$final_month=year_df$X2
+      }else if(p==3)
+      {
+        month_df<-year_df[!duplicated(year_df),]
+        table1<-table(month_df$X1)
+        table1<-as.data.frame(table(month_df$X1))
+        table2<-as.data.frame(table(month_df$X2))
+        
+        table1_V1<-table1$Var1
+        table1_V2<-table2$Var1
+        table1$match<-(table1$Var1 %in% table2$Var1)
+        
+        
+        match_table_has_value<-isTRUE(any(table1$match==TRUE))
+        
+        
+        if(match_table_has_value==FALSE){
+          stop<-1
+          month_day_freq<-1
+        }else{
+          a<-data.frame(table1[table1$match=="TRUE",])
+          
+          T1_a2<-max(a$Freq)####frequency
+          
+          T1_a1<-(a[a$Freq==T1_a2,1])####common value(number)
+          
+          ###checking for the levels in the common value 
+          if(is.factor(T1_a1)){
+            
+            if(length(as.numeric(T1_a1))>1)
+            {
+              T1_a1<-as.numeric(as.character(T1_a1[1]))
+            }else{
+              T1_a1<-as.numeric(as.character(T1_a1))
+            }
+          }else{
+            if(length(T1_a1)>1)
+            {
+              T1_a1<-T1_a1[1]
+            }else{
+              T1_a1<-T1_a1
+            }
+          }
+          
+          T2_b1<-table2[table2$Var1==T1_a1,1]
+          T2_b1<-as.numeric(T2_b1)
+          
+          T2_b2<-table2[table2$Var1==T1_a1,2]
+          T2_b2<-as.numeric(T2_b2)
+          
+          
+          if(length(T2_b1)>0)
+          {
+            if(T1_a2 > T2_b2)
+            {
+              df$final_month=year_df$X1
+              df$final_day=year_df$X2
+              
+            }else if(T1_a2 < T2_b2)
+            {
+              df$final_day=year_df$X1
+              df$final_month=year_df$X2
+              
+            }else if(T1_a2 == T2_b2)
+            {
+              p=9
+              month_day_freq<-2
+            }
+          }
+        }##
+      }
+    }
+  }#######end of second #stop
+    
+    
+    if(p<=3 & stop==0){
+      return(df)
+    }
+    
+    if(stop==1 & month_day_freq==0){
+      p=6
+      return(c(flag=p))
+    }
+    
+    if(p==4){
+      return(c(flag=p,line=paste((line_num), collapse=',')))
+    }
+    if(month_day_freq==1  & stop==1){
+      p=8
+      return(c(flag=p))
+    }
+    if(month_day_freq==2  & stop==0){
+      p=9
+      return(c(flag=p))
+    }
+    
+  }
+  
+  
+  
+  ######time validation function
+  time_validation<-function(data){
+    split1<-data
+    
+    split1$X2[split1$X1==split1$X2]<-0
+    time_separator_field_value<-which(str_length(split1$X2)==(max(str_length(na.exclude(split1$X2)))))[1]
+    ###finding the separator from the maximum length value field
+    
+    Time_sep<-find_separator_time(split1$X2[time_separator_field_value])
+    
+    
+    stop=0 
+    p<-0
+    time_df <- data.frame(do.call('rbind', strsplit(as.character(split1$X2),Time_sep,fixed=TRUE)),stringsAsFactors = FALSE)
+    
+    if(split1_length==3){
+      if(any(split1$X3==split1$X1) |any(split1$X2==split1$X1)==TRUE){
+        stop<-1
+      }}
+    
+    if(stop==0)
+    {
+      
+      ####This  part will execute only if there are no multiple format found in time stamp
+      
+      df$final_hour=0
+      df$final_min=0
+      df$final_sec=0
+      p=0
+      
+      if(split1_length==3)
+      {
+        if(length(time_df)==3){
+          
+          if(any( str_count(split1$X2,Time_sep)==0)){
+            time_df$X2[which(str_count(split1$X2,Time_sep)==0)]<-0
+            time_df$X3[which(str_count(split1$X2,Time_sep)==0)]<-0
+          }
+          
+          if(any( str_count(split1$X2,Time_sep)==1)){
+            time_df$X3[which(str_count(split1$X2,Time_sep)==1)]<-0
+          }
+          
+          
+          split1$Mod_time<-parse_date_time(paste(time_df$X1,time_df$X2,time_df$X3,split1$X3,sep=" "), 'IMS p')
+          df$final_hour<-hour(parse_date_time(paste(time_df$X1,time_df$X2,time_df$X3,split1$X3,sep=" "), "IMS p"))
+          df$final_min<-minute(parse_date_time(paste(time_df$X1,time_df$X2,time_df$X3,split1$X3,sep=" "), "IMS p"))
+          df$final_sec<-second(parse_date_time(paste(time_df$X1,time_df$X2,time_df$X3,split1$X3,sep=" "), "IMS p"))
+          
+        }else if(length(time_df)==2){
+          ###have to includ a if condition
+          
+          # chk1<-which(grepl(Time_sep,split1$X2)==FALSE)
+          # 
+          # if(length(chk1)>0)
+          #   
+          time_df$X2[which(grepl(Time_sep,split1$X2)==FALSE)]<-0
+          
+          
+          split1$Mod_time<-parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), 'IM p')
+          df$final_hour<-hour(parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), "IM p"))
+          df$final_min<-minute(parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), "IM p"))
+          df$final_sec<-second(parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), "IM p"))
+        }else{
+          colnames(time_df)<-"X1"
+          time_df$X2<-0
+          
+          split1$Mod_time<-parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), 'IM p')
+          
+          df$final_hour<-hour(parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), "IM p"))
+          df$final_min<-minute(parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), "IM p"))
+          df$final_sec<-second(parse_date_time(paste(time_df$X1,time_df$X2,split1$X3,sep=" "), "IM p"))
+          
+        }
+        
+      }else{
+        
+        df$final_hour<-hour(hms(split1$X2))
+        df$final_min<-minute(hms(split1$X2))
+        df$final_sec<-second(hms(split1$X2))
+        
+      }
+      
+      df$final_sec[is.na(df$final_sec)]<-0
+      df$final_min[is.na(df$final_min)]<-0
+      df$final_hour[is.na(df$final_hour)]<-0
+      
+    }
+    
+    
+    
+    if(stop==1){
+      p=7###More than one time format
+      return(c(flag=p))
+    }else if(stop==2){
+      p=9###Not a valid time 
+      return(c(flag=p))
+    }else{
+      return(df)
+    }
+  }
+  
+  
+  
+  #######Data loading
+  df<-data
+  
+  df$mod_date1<-as.character(df[,column])
+  
+ 
+  #### checking for the character column  as well as blank column
+  
+  This_is_not_date<-FALSE
+  
+  This_is_all_blank<-all(str_length(df$mod_date1)==0)
+  
+  This_is_all_blank<-is.na(This_is_all_blank)
+  
+  This_exceeds_maximum_length<-any(str_length(na.exclude(df$mod_date1))>30)
+  
+
+  if(This_is_all_blank==TRUE){
+    This_is_not_date<-TRUE
+  }
+  
+  if(This_exceeds_maximum_length==TRUE){
+    This_is_not_date<-TRUE
+  }
+  
+  
+  ###checking for all numeric
+
+  
+  # pattern_str<-c("JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE",
+  #                "JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER",
+  #                "JAN","FEB","MAR","APR","JUN","JUL","AUG","SEPT","OCT","NOV","DEC")
+  pattern_str<-c("JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JAN|FEB|MAR|APR|JUN|JUL|AUG|SEPT|OCT|NOV|DEC|AM|PM")
+ 
+  if(all(is.numeric(as.numeric(na.exclude(df$mod_date1)))==TRUE) & any(is.na(as.numeric(na.exclude(df$mod_date1)))==FALSE)){
+    
+    This_is_not_date<-TRUE
+  }else{
+    str_testing<-str_trim(gsub("[[:punct:]]", "",df$mod_date1))
+    
+    str_testing<-str_trim(gsub(" ", "",str_testing))
+   
+    str_testing<-toupper(str_testing)
+    
+    str_testing<- str_replace_all(string=str_testing, pattern=pattern_str, repl="")
+    
+    str_testing<-str_testing[!str_length(str_testing)==0]
+    
+    
+    if(all(is.numeric(as.numeric(na.exclude(str_testing)))==TRUE) & all(is.na(as.numeric(na.exclude(str_testing)))==FALSE)){
+      
+      This_is_not_date<-FALSE
+    }else{
+      This_is_not_date<-TRUE
+    }
+    
+  }
+  
+#   df$mod_date1[(tolower(df$mod_date1) %in% c("#ref!","#name?","#n/a"))]<-NA
+#   
+#   ### !"#$%&'()*+,-./:;<=>?@[]^_`{|}~ 
+#   #df$mod_date1<-str_trim(gsub(c(",","&","\\$",">","<","%","\\*","\\+",";","=","\\?","@","\\[","\\]","\\{","\\}","\\~","\\^"), "", df$mod_date1))
+#   # df$mod_date1<-str_trim(gsub("[[:punct:]]", "", df$mod_date1))
+#   
+#   df$mod_date1<-str_trim(gsub(c("-","\\.",":","/"), "", df$mod_date1))
+#   
+#   
+# str_testing <- gsub("[[:digit:]]","",df$mod_date1)  
+# # str_testing<- str_replace_all(string=df$mod_date1, pattern=" ", repl="")
+# # str_testing<-str_testing[!str_length(str_testing)==0]
+# # str_testing<-str_testing[!is.na(str_testing)]
+# # all_string<-all(grepl("^[A-Za-z]+$",str_testing,perl = T)==TRUE)
+# 
+# if(all_string==TRUE){
+#   This_is_not_date<-TRUE
+# }
+#   #####will procedd only if the length of the column is less than 30
+  if(This_is_not_date==FALSE){
+    
+    ####NUll value handling 
+    
+    nul_val_rep=which(str_length(df$mod_date1)==(max(str_length(na.exclude(df$mod_date1)))))[1]
+    
+    df$mod_date2[is.na(df$mod_date1)=="TRUE"]<-"NUL"
+    df$mod_date2[is.null(df$mod_date1)=="TRUE"]<-"NUL"
+    df$mod_date2[df$mod_date1==""]<-"NUL"
+    df$mod_date1[is.na(df$mod_date1)=="TRUE"]<-"NUL"
+    df$mod_date1[is.null(df$mod_date1)=="TRUE"]<-"NUL"
+    df$mod_date1[df$mod_date1==""]<-"NUL"
+    
+    
+    df$mod_date1[df$mod_date1=="NUL"]<-df$mod_date1[nul_val_rep]
+    
+    ###split 1 is the splitting b/w date and time stamp value by space
+    
+    split1 <- data.frame(do.call('rbind', strsplit(df$mod_date1," ",fixed=TRUE)),stringsAsFactors = FALSE)
+    
+    
+    
+    ####Finding the length of the df to find whether it has date,time,AM/PM idicator in it
+    
+    split1_length<-length(split1)
+    
+    return_df_date<-1
+    return_df_time<-1
+    
+    ########Function Calling
+    if(split1_length==1){
+      return_df_date<-date_validation(split1)
+    }else if(split1_length>=2){
+      
+      return_df_time<-time_validation(split1)
+      
+      if(is.data.frame(return_df_time)==T){
+        return_df_date<-date_validation(split1)
+      }
+    }####end of Function Calling
+  }else{
+    return_df_date<-6
+  } ####end characcter check
+  
+  
+  ########## Return part
+  
+  if(is.data.frame(return_df_date)==F){
+  
+    if(return_df_date[1]==6){
+      return("THE COLUMN PASSED IS NOT A VALID DATE")
+    }
+    if(return_df_date[1]==4){
+      return("More than one date format identified")
+      
+      # return(paste("More than one date format identified, verify the lines: ",paste(return_df_date[2], collapse=',')))
+    }
+    if(return_df_date[1]==9){
+      return("The frequency method for finding date and month fails -- month and date have same frequency")
+    }
+    if(return_df_date[1]==8){
+      return("The frequency method for finding date and time fails -- it has no common value for frequency identification")
+    }
+  }
+  
+  if(is.data.frame(return_df_date)==F){
+    if(return_df_time[1]==7){
+      return("More than one Time format identified,change the column format in dump")}
+  }
+  if(is.data.frame(return_df_date)==F){
+    if(return_df_time[1]==9){
+      return("Time Format is not having a separator")}
+  }
+  
+  
+  if(is.data.frame(return_df_time)==T)
+  {
+    final_date_time<-return_df_date
+    final_date_time$final_hour<-return_df_time$final_hour
+    final_date_time$final_min<-return_df_time$final_min
+    final_date_time$final_sec<-return_df_time$final_sec
+    
+    #############replacing the Null values  with 0
+    final_date_time$mod_date2[is.na(final_date_time$mod_date2)]<-0
+    if(any(final_date_time$mod_date2=="NUL")==TRUE )
+    {
+      final_date_time$final_month[final_date_time$mod_date2=="NUL"]<-0
+      final_date_time$final_day[final_date_time$mod_date2=="NUL"]<-0
+      final_date_time$final_year[final_date_time$mod_date2=="NUL"]<-0
+      final_date_time$final_hour[final_date_time$mod_date2=="NUL"]<-0
+      final_date_time$final_min[final_date_time$mod_date2=="NUL"]<-0
+      final_date_time$final_sec[final_date_time$mod_date2=="NUL"]<-0
+    }
+    
+    
+    
+    final_date_time$final_date1<-mdy_hms(paste(final_date_time$final_month,final_date_time$final_day,
+                                               final_date_time$final_year,
+                                               final_date_time$final_hour,final_date_time$final_min,
+                                               final_date_time$final_sec,sep="/"))
+    
+    return(final_date_time)
+  }
+  
+  if(is.data.frame(return_df_date)==T)
+  {
+    final_date_time<-return_df_date
+    final_date_time$final_hour<-0
+    final_date_time$final_min<-0
+    final_date_time$final_sec<-0
+    
+    
+    
+    
+    
+    #############replacing the Null values  with 0
+    final_date_time$mod_date2[is.na(final_date_time$mod_date2)]<-0
+    if(any(final_date_time$mod_date2=="NUL")==TRUE )
+    {
+      final_date_time$final_month[final_date_time$mod_date2=="NUL"]<-0
+      final_date_time$final_day[final_date_time$mod_date2=="NUL"]<-0
+      final_date_time$final_year[final_date_time$mod_date2=="NUL"]<-0
+    }
+    
+    
+    final_date_time$final_date1<-mdy_hms(paste(final_date_time$final_month,final_date_time$final_day,
+                                               final_date_time$final_year,
+                                               final_date_time$final_hour,final_date_time$final_min,
+                                               final_date_time$final_sec,sep="/"))
+    
+    return(final_date_time)
+  }
+  
+  
+  
+}
+
+
+
