@@ -1,0 +1,150 @@
+---
+title: "Prediction of House Prices (Regression Trees, Random Forests, Gradient Boosting Machine)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+### Introduction
+
+I used three methods for prediction House Prices (Regression Trees, Random Forests and Gradient Boosting Machine). Then I compared their accuracy with RMSE (root-mean-square error).
+
+### Data preparation
+
+```{r }
+library(dplyr)
+library(tidyr)
+library(rpart)
+library(randomForest)
+library(ggplot2)
+library(gbm)
+
+#### Data preparation ####
+
+# Load data
+df <- read.csv("../input/train.csv", stringsAsFactors = F)
+row.names(df) <- df$Id
+df <- df[,-1]
+df[is.na(df)] <- 0
+for(i in colnames(df[,sapply(df, is.character)])){
+    df[,i] <- as.factor(df[,i])
+}
+
+# create a sample vector of test values
+test.n <- sample(1:nrow(df), nrow(df)/3, replace = F)
+
+# test dataset
+test <- df[test.n,]
+
+# train dataset
+train <- df[-test.n,]
+
+rm(test.n, df)
+
+# Evaluation metric function
+RMSE <- function(x,y){
+    a <- sqrt(sum((log(x)-log(y))^2)/length(y))
+    return(a)
+}
+```
+
+### Regression Trees
+
+```{r }
+#### R, Regression Trees, function rpart(), method "anova" ####
+model <- rpart(SalePrice ~., data = train, method = "anova")
+predict <- predict(model, test)
+
+# RMSE
+RMSE1 <- RMSE(predict, test$SalePrice)
+RMSE1 <- round(RMSE1, digits = 3)
+plot1 <- predict-test$SalePrice
+```
+
+RMSE = `r RMSE1`
+
+### Random Forests
+
+```{r }
+#### R, Random Forests, function randomForest(), method "anova" ####
+model <- randomForest(SalePrice ~., data = train, method = "anova",
+                      ntree = 300,
+                      mtry = 26,
+                      replace = F,
+                      nodesize = 1,
+                      importance = T)
+predict <- predict(model, test)
+
+# RMSE
+RMSE2 <- RMSE(predict, test$SalePrice)
+RMSE2 <- round(RMSE2, digits = 3)
+plot2 <- predict-test$SalePrice
+```
+
+RMSE = `r RMSE2`
+
+### Gradient Boosting Machine
+
+```{r }
+#### R, gbm(), distribution "laplace" ####
+model <- gbm(SalePrice ~., data = train, distribution = "laplace",
+              shrinkage = 0.05,
+              interaction.depth = 5,
+              bag.fraction = 0.66,
+              n.minobsinnode = 1,
+              cv.folds = 100,
+              keep.data = F,
+              verbose = F,
+              n.trees = 300)
+predict <- predict(model, test, n.trees = 300)
+
+# RMSE
+RMSE3 <- RMSE(predict, test$SalePrice)
+RMSE3 <- round(RMSE3, digits = 3)
+plot3 <- predict-test$SalePrice
+```
+
+RMSE = `r RMSE3`
+
+### Conclusion
+
+Gradient Boosting Machine gave the most accurate results:
+
+* Regression Trees RMSE = `r RMSE1`;
+* Random Forests RMSE = `r RMSE2`;
+* GBM RMSE = `r RMSE3`.
+
+```{r }
+
+#### Plot "The difference between predict and real values" ####
+
+data_plot <- data.frame("regression trees" = plot1,
+                        "random forests" = plot2,
+                        "gradient BM" = plot3)
+data_plot$Id <- row.names(data_plot)
+data_plot <- gather(data_plot, method, value, - Id)
+data_plot$method <- as.factor(data_plot$method)
+levels(data_plot$method) <- c(paste0("GBM (", RMSE3, ")"), 
+                              paste0("Random Forests (", RMSE2, ")"),
+                              paste0("Regression Trees (", RMSE1, ")"))
+
+ggplot(data_plot, aes(x = Id, y = value, colour = method))+
+    geom_point(alpha = 0.7, size = 2)+
+    ggtitle("The difference between predict and real prices")+
+    labs(x = "Buyer Id", y = "The difference between prices", colour = " ")+
+    scale_x_discrete(breaks = c(0))+
+    theme(legend.position = "top",
+          legend.text = element_text(size = 12),
+          axis.text.x = element_blank(), 
+          axis.title.x = element_text(size = 14),
+          axis.text.y = element_text(size = 14), 
+          axis.title.y = element_text(size = 14),
+          title = element_text(size = 16))
+
+```
